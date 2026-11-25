@@ -1,0 +1,13 @@
+{
+  "name": "resume-job-matcher",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export": "tsx scripts/export.mjs"
+  },
+  "dependencies": {
+    "@n8n/workflow-sdk": "0.42.3",
+    "tsx": "*",
+    "typescript": "*"
+  }
+}

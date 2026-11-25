@@ -1,0 +1,155 @@
+{
+  "id": "resume-job-matcher",
+  "name": "Resume Job Matcher",
+  "nodes": [
+    {
+      "id": "d6ecd8a5-3f61-4d2b-8304-33372c73dd4a",
+      "name": "Resume Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [0, 0],
+      "parameters": {
+        "formTitle": "Find Jobs for My Resume",
+        "formDescription": "Paste the Google Drive link to your resume PDF. Matching jobs will be saved as a Word file in your Google Drive.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Resume Google Drive link (PDF)",
+              "fieldName": "resumeLink",
+              "placeholder": "https://drive.google.com/file/d/.../view",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Preferred job location (optional)",
+              "fieldName": "location",
+              "placeholder": "e.g. Bengaluru, Remote, India"
+            }
+          ]
+        },
+        "options": {
+          "path": "resume-job-matcher",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Thanks! Your job matches will be saved as a Word file in your Google Drive in about a minute."
+            }
+          }
+        }
+      },
+      "webhookId": "b3169142-256e-4212-8f3c-94434ae04556"
+    },
+    {
+      "id": "d61c46fe-9e1e-4714-8e3e-224aad12815e",
+      "name": "Download Resume",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [224, 0],
+      "parameters": {
+        "resource": "file",
+        "operation": "download",
+        "fileId": { "__rl": true, "mode": "url", "value": "={{ $json.resumeLink }}" },
+        "options": {}
+      },
+      "credentials": {}
+    },
+    {
+      "id": "511be58b-f382-407f-a7a4-2e38a3789773",
+      "name": "Read Resume Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [448, 0],
+      "parameters": { "operation": "pdf", "options": { "joinPages": true } }
+    },
+    {
+      "id": "cea7034f-4ad9-4d90-b54b-3ec1ab93798d",
+      "name": "Build Job Search Query",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [672, 0],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": { "__rl": true, "mode": "list", "value": "claude-sonnet-5", "cachedResultName": "claude-sonnet-5" },
+        "messages": {
+          "values": [
+            {
+              "content": "=Read this resume and write ONE short web search query (max 12 words) to find current job openings that fit this person best. Include the best-fit job title, 1-2 key skills, the location, and the words \"jobs hiring\". Preferred location: {{ $(\"Resume Form\").item.json.location || \"use the location from the resume, else India\" }}.\nReply with only the query text, nothing else.\n\nRESUME:\n{{ $json.text }}"
+            }
+          ]
+        },
+        "options": { "includeMergedResponse": true, "maxTokens": 100 }
+      },
+      "credentials": {}
+    },
+    {
+      "id": "1ee220e7-8353-46eb-8cd4-a7acd6e50946",
+      "name": "Search Job Listings",
+      "type": "@brave/n8n-nodes-brave-search.braveSearch",
+      "typeVersion": 1.1,
+      "position": [896, 0],
+      "parameters": {
+        "operation": "web",
+        "query": "={{ $json.merged_response.trim().replace(/^\"|\"$/g, \"\") }}",
+        "count": 20,
+        "additionalParameters": { "country": "IN", "freshness": "pm" }
+      },
+      "credentials": {}
+    },
+    {
+      "id": "7d7ffb40-d016-4a03-8d46-6d5f8424e879",
+      "name": "Pick Best Job Matches",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [1120, 0],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": { "__rl": true, "mode": "list", "value": "claude-sonnet-5", "cachedResultName": "claude-sonnet-5" },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a career assistant. Compare the RESUME with the SEARCH RESULTS and write a job matches report in Markdown.\n\nRules:\n- Only use jobs/listing pages that appear in the SEARCH RESULTS. Never invent companies, jobs or links.\n- Start with \"# Job Matches - {{ $now.toFormat(\"d LLL yyyy\") }}\".\n- Add \"## Candidate Summary\" with 3 bullet points (target role, key skills, experience).\n- Add \"## Top Matches\" as a Markdown table with columns: | Role | Company / Site | Location | Match % | Link |. Up to 10 rows, best first.\n- Add \"## Why These Fit\" with one bullet per job, using **bold** for the role.\n- Add \"## Next Steps\" as a numbered list of 3 tips to improve the resume for these roles.\n- If no real job listings are in the results, say so plainly under Top Matches.\nReply with only the Markdown.\n\nRESUME:\n{{ $(\"Read Resume Text\").first().json.text }}\n\nSEARCH QUERY: {{ $(\"Build Job Search Query\").first().json.merged_response }}\n\nSEARCH RESULTS (JSON):\n{{ JSON.stringify($(\"Search Job Listings\").all().map(i => i.json)).slice(0, 30000) }}"
+            }
+          ]
+        },
+        "options": { "includeMergedResponse": true, "maxTokens": 4000 }
+      },
+      "credentials": {},
+      "executeOnce": true
+    },
+    {
+      "id": "7bcbafcf-6155-4263-8de7-0831ba05d931",
+      "name": "Save Matches as Word in Drive",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [1344, 0],
+      "parameters": {
+        "source": "database",
+        "workflowId": { "__rl": true, "mode": "list", "value": "igBcEKewnveBvNae", "cachedResultName": "Save Job Matches to Word" },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fileName": "=Job_Matches_{{ $now.toFormat(\"yyyy-MM-dd_HHmm\") }}",
+            "content": "={{ $json.merged_response }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "fileName", "displayName": "fileName", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string" },
+            { "id": "content", "displayName": "content", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string" }
+          ],
+          "attemptToConvertTypes": false
+        },
+        "options": { "waitForSubWorkflow": true }
+      }
+    }
+  ],
+  "connections": {
+    "Resume Form": { "main": [[{ "node": "Download Resume", "type": "main", "index": 0 }]] },
+    "Download Resume": { "main": [[{ "node": "Read Resume Text", "type": "main", "index": 0 }]] },
+    "Read Resume Text": { "main": [[{ "node": "Build Job Search Query", "type": "main", "index": 0 }]] },
+    "Build Job Search Query": { "main": [[{ "node": "Search Job Listings", "type": "main", "index": 0 }]] },
+    "Search Job Listings": { "main": [[{ "node": "Pick Best Job Matches", "type": "main", "index": 0 }]] },
+    "Pick Best Job Matches": { "main": [[{ "node": "Save Matches as Word in Drive", "type": "main", "index": 0 }]] }
+  },
+  "settings": {}
+}

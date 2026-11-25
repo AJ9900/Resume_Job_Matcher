@@ -15,23 +15,29 @@ Form (Drive link + optional location)
         Build docx parts (Code) -> Package as docx (Compression/zip) -> Upload to Google Drive
 ```
 
-Two workflows live in `workflows/`:
+Two workflows:
 
-| File | Name | Purpose |
+| Workflow | Source | Purpose |
 |---|---|---|
-| `resume-job-matcher.json` | Resume Job Matcher | Main flow, started by an n8n Form |
-| `save-job-matches-to-word.json` | Save Job Matches to Word | Sub-workflow: converts Markdown to .docx and uploads to Drive |
+| Resume Job Matcher | `workflows/resume-job-matcher.json`, `sdk-source/resume-job-matcher.workflow.ts` | Main flow, started by an n8n Form |
+| Save Job Matches to Word | `sdk-source/save-job-matches-to-word.workflow.ts` (JSON generated, see below) | Sub-workflow: converts Markdown to .docx and uploads to Drive |
 
-`sdk-source/` holds the TypeScript sources (`@n8n/workflow-sdk`) the JSON files were generated from.
+`sdk-source/` holds the TypeScript sources (`@n8n/workflow-sdk`). The importable JSON for both workflows can be (re)generated with:
+
+```bash
+npm install
+npm run export   # writes workflows/*.json
+```
 
 ## Quick start
 
-1. In n8n, **Import from File** `workflows/save-job-matches-to-word.json` first, then `workflows/resume-job-matcher.json`.
-2. In the main workflow, open **Save Matches as Word in Drive** and re-select the imported sub-workflow (its ID will differ on your instance).
-3. Connect credentials (see [docs/SETUP.md](docs/SETUP.md)): Google Drive OAuth2, Anthropic, Brave Search.
-4. **Publish the sub-workflow** (a sub-workflow must be active to be called).
-5. Open **Resume Form**, run it, paste a Drive PDF link (your account must be able to read it) and optionally a location.
-6. Find `Job_Matches_<yyyy-MM-dd_HHmm>.docx` in the root of your Google Drive.
+1. Run `npm install && npm run export` to produce `workflows/save-job-matches-to-word.json`.
+2. In n8n, **Import from File** the sub-workflow JSON first, then `workflows/resume-job-matcher.json`.
+3. In the main workflow, open **Save Matches as Word in Drive** and re-select the imported sub-workflow (its ID will differ on your instance).
+4. Connect credentials (see [docs/SETUP.md](docs/SETUP.md)): Google Drive OAuth2, Anthropic, Brave Search.
+5. **Publish the sub-workflow** (a sub-workflow must be active to be called).
+6. Open **Resume Form**, run it, paste a Drive PDF link (your account must be able to read it) and optionally a location.
+7. Find `Job_Matches_<yyyy-MM-dd_HHmm>.docx` in the root of your Google Drive.
 
 To expose the form publicly, publish the main workflow; the form path is `resume-job-matcher`.
 
